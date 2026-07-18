@@ -99,11 +99,23 @@ def load_restaurants() -> list[Restaurant]:
             )
         )
 
+    # Deduplicate: the raw dataset repeats each restaurant once per listing
+    # category (EC-D08), producing exact dupes. Keep one record per
+    # (name, location), preferring the most-voted (most complete) listing.
+    unique: dict[tuple[str, str], Restaurant] = {}
+    for r in restaurants:
+        key = (r.name.lower(), r.location.lower())
+        existing = unique.get(key)
+        if existing is None or r.votes > existing.votes:
+            unique[key] = r
+    deduped = list(unique.values())
+
     elapsed = time.perf_counter() - started
     logger.info(
-        "Loaded %d restaurants (%d skipped) in %.1fs",
-        len(restaurants),
+        "Loaded %d restaurants (%d duplicates merged, %d skipped) in %.1fs",
+        len(deduped),
+        len(restaurants) - len(deduped),
         skipped,
         elapsed,
     )
-    return restaurants
+    return deduped

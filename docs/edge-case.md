@@ -1070,6 +1070,15 @@ this section grows as we build).
 | **Decision** | Structured filters (rating/cost/cuisine) are just a `sort` and don't need AI. The LLM's real value is parsing **free-text intent** in `additional_preferences` ("impressive but not pricey, first date, outdoor seating") that dropdowns can't express — and justifying picks against it. Phase 3 leans into this. |
 | **Provider** | Google Gemini Flash (`gemini-2.5-flash`) — free tier, native structured JSON output critical to grounding. |
 
+### DB-04: The dataset is ~76% duplicate rows
+
+| | |
+|---|---|
+| **Found in** | Phase 2 (first real filter query returned the same restaurant 5×) |
+| **Reality** | Each restaurant is listed once per category (Buffet, Dining, Delivery…), so `filter` surfaced exact dupes. 51,696 rows → **12,126 unique** restaurants. |
+| **Decision** | Deduplicate at load by `(name, location)`, keeping the most-voted listing. Overrides EC-D08's original "keep all" plan — these are identical, not distinct branches. |
+| **Handling** | Dedup step in `data/loader.py`; verified query now returns distinct results (Toit, Chianti, Pasta Street…). |
+
 ---
 
 ## References
