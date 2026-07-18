@@ -18,6 +18,8 @@ Rules you must follow:
 - Do not alter factual fields (name, rating, cost) — just rank and explain.
 - The user's free-text request is the MOST important signal. Weigh it above the
   structured filters, and make each explanation clearly tie back to what they asked.
+- Write plainly. Do NOT use em dashes or en dashes (— or –); use commas or short
+  sentences instead.
 - Return ONLY valid JSON matching the requested schema. No prose outside the JSON.
 """
 

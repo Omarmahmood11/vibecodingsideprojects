@@ -19,6 +19,11 @@ def _format_cost(cost: int | None) -> str:
     return f"₹{cost} for two" if cost is not None else "Price not available"
 
 
+def _no_dashes(text: str) -> str:
+    """Strip em/en dashes from model text (belt-and-suspenders with the prompt)."""
+    return text.replace(" — ", ", ").replace(" – ", ", ").replace("—", ", ").replace("–", "-")
+
+
 def _strip_fences(text: str) -> str:
     """Remove ```json ... ``` fences if the model added them (EC-P01)."""
     text = text.strip()
@@ -88,7 +93,7 @@ def parse_recommendations(
         if rid not in by_id or rid in seen:  # reject hallucinated / duplicate ids
             continue
         seen.add(rid)
-        explanation = (item.get("explanation") or "").strip()
+        explanation = _no_dashes((item.get("explanation") or "").strip())
         restaurant = by_id[rid]
         if not explanation:  # EC-P03: template fallback for a missing explanation
             explanation = f"Rated {restaurant.rating}/5, {restaurant.cuisine}."
@@ -100,7 +105,7 @@ def parse_recommendations(
     if not recommendations:  # every id was invalid → full fallback
         return _fallback(candidates, prefs, "no valid restaurant ids")
 
-    summary = (data.get("summary") or "").strip()
+    summary = _no_dashes((data.get("summary") or "").strip())
     if not summary:  # EC-P02
         summary = f"Here are {len(recommendations)} picks in {prefs.location} for you."
 
