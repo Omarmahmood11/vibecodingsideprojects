@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "restaurant-api",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": ["restaurant_rec.main:app", "--port", "8000"],
+      "port": 8000
+    }
+  ]
+}

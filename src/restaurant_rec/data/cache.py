@@ -34,8 +34,11 @@ class RestaurantStore:
         self._ready = False
 
     def load(self) -> None:
-        """Populate the store and build indexes. Safe to call once at startup."""
-        records = load_restaurants()
+        """Populate the store from Hugging Face and build indexes (startup)."""
+        self.load_records(load_restaurants())
+
+    def load_records(self, records: list[Restaurant]) -> None:
+        """Build the store from an in-memory list. Used by load() and by tests."""
         self._records = records
         self._by_id = {r.id: r for r in records}
 
