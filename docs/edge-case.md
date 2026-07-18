@@ -1079,6 +1079,14 @@ this section grows as we build).
 | **Decision** | Deduplicate at load by `(name, location)`, keeping the most-voted listing. Overrides EC-D08's original "keep all" plan — these are identical, not distinct branches. |
 | **Handling** | Dedup step in `data/loader.py`; verified query now returns distinct results (Toit, Chianti, Pasta Street…). |
 
+### DB-05: Some names have multi-layer encoding damage (mojibake)
+
+| | |
+|---|---|
+| **Found in** | Phase 3 (a live recommendation showed `SantÃÂ…© Spa Cuisine`) |
+| **Reality** | ~0.6% of names contain non-ASCII; a few are multiply mis-encoded (should be "Santé"). Confirms EC-D10. |
+| **Decision** | Not worth a bespoke multi-pass decoder for 0.6%. Apply a single `ftfy.fix_text` normalization pass in the loader — fixes common cases, harmless to ASCII names. A handful of deeply-mangled names remain (accepted limitation). |
+
 ---
 
 ## References

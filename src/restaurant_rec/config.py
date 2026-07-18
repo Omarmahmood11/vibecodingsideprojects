@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # LLM provider
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
-    llm_model: str = Field(default="gemini-2.5-flash", alias="LLM_MODEL")
+    llm_model: str = Field(default="gemini-flash-latest", alias="LLM_MODEL")
     llm_temperature: float = Field(default=0.3, ge=0.0, le=2.0, alias="LLM_TEMPERATURE")
     llm_timeout_seconds: int = Field(default=30, ge=1, alias="LLM_TIMEOUT_SECONDS")
     llm_max_retries: int = Field(default=3, ge=0, alias="LLM_MAX_RETRIES")

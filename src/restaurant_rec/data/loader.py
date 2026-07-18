@@ -8,10 +8,17 @@ raw quirks; everything downstream works with clean `Restaurant` objects.
 import logging
 import time
 
+import ftfy
+
 from ..config import get_settings
 from ..models.restaurant import Restaurant
 
 logger = logging.getLogger(__name__)
+
+
+def _clean(text: object) -> str:
+    """Strip and repair common text-encoding damage (EC-D10). ~0.6% of names."""
+    return ftfy.fix_text(str(text or "")).strip()
 
 # Raw dataset column names (note the spaces/parentheses — we isolate them here).
 COL_NAME = "name"
@@ -78,8 +85,8 @@ def load_restaurants() -> list[Restaurant]:
     restaurants: list[Restaurant] = []
     skipped = 0
     for index, row in enumerate(ds):
-        name = (row.get(COL_NAME) or "").strip()
-        location = (row.get(COL_LOCATION) or "").strip()
+        name = _clean(row.get(COL_NAME))
+        location = _clean(row.get(COL_LOCATION))
         if not name or not location:
             skipped += 1
             continue
@@ -89,11 +96,11 @@ def load_restaurants() -> list[Restaurant]:
                 id=f"r{index}",
                 name=name,
                 location=location,
-                city=(row.get(COL_CITY) or "").strip() or None,
-                cuisine=(row.get(COL_CUISINES) or "").strip(),
+                city=_clean(row.get(COL_CITY)) or None,
+                cuisine=_clean(row.get(COL_CUISINES)),
                 rating=parse_rating(row.get(COL_RATE)),
                 cost_for_two=parse_cost(row.get(COL_COST)),
-                rest_type=(row.get(COL_REST_TYPE) or "").strip() or None,
+                rest_type=_clean(row.get(COL_REST_TYPE)) or None,
                 votes=int(row.get(COL_VOTES) or 0),
                 raw=dict(row),
             )
