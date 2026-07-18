@@ -2,21 +2,52 @@
 
 Keeping the interface tiny (`complete`) means the rest of the app never imports
 a vendor SDK — swapping providers is a one-file change (Architecture principle).
+
+Reliability (Phase 6 hardening):
+- Enforce a response schema + JSON mime so the reply is always the exact shape.
+- Disable "thinking" for this ranking task so the whole output-token budget goes
+  to the JSON answer (also faster), and cap output tokens to avoid truncation.
+- Fail fast on 429 (free-tier quota / rate limit): retrying just burns more of the
+  daily quota and rarely helps in-window, so we surface a typed error and let the
+  caller degrade to rule-based ranking with an honest reason.
 """
 
 import asyncio
 import logging
 from typing import Protocol
 
+from pydantic import BaseModel
+
 from ..config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+class LLMRateLimitError(Exception):
+    """Provider rejected the call for quota / rate limits (HTTP 429)."""
+
+
+class LLMUnavailableError(Exception):
+    """LLM call failed after retries (timeout / server error)."""
 
 
 class LLMClient(Protocol):
     async def complete(self, system: str, user: str) -> str:
         """Return the model's raw text response (expected to be JSON)."""
         ...
+
+
+# Structured-output schema: forces Gemini to emit exactly this shape. Mirrors the
+# JSON the prompt asks for and the parser reads (rank is accepted but re-derived).
+class _RecItem(BaseModel):
+    rank: int
+    restaurant_id: str
+    explanation: str
+
+
+class _LLMOutput(BaseModel):
+    summary: str
+    recommendations: list[_RecItem]
 
 
 class GeminiClient:
@@ -36,7 +67,12 @@ class GeminiClient:
         config = types.GenerateContentConfig(
             system_instruction=system,
             temperature=self._settings.llm_temperature,
+            max_output_tokens=self._settings.llm_max_output_tokens,
             response_mime_type="application/json",
+            response_schema=_LLMOutput,
+            # Ranking/formatting doesn't need chain-of-thought; disabling it sends
+            # the whole token budget to the JSON answer and cuts latency.
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
 
         last_exc: Exception | None = None
@@ -49,13 +85,13 @@ class GeminiClient:
                     timeout=self._settings.llm_timeout_seconds,
                 )
                 return response.text or ""
-            except (TimeoutError, errors.ServerError) as exc:
-                last_exc = exc
             except errors.ClientError as exc:
-                # 429 is transient (rate limit); other 4xx are not worth retrying.
-                if exc.code != 429:
-                    raise
-                last_exc = exc
+                # 429 = quota/rate limit. Fail fast: retrying burns more quota.
+                if exc.code == 429:
+                    raise LLMRateLimitError(str(exc)) from exc
+                raise  # other 4xx (bad key/config) — not retryable, surface it
+            except (TimeoutError, errors.ServerError) as exc:
+                last_exc = exc  # transient — worth a retry
 
             if attempt < self._settings.llm_max_retries:
                 backoff = 2**attempt
@@ -64,4 +100,4 @@ class GeminiClient:
                 )
                 await asyncio.sleep(backoff)
 
-        raise RuntimeError("LLM call failed after retries") from last_exc
+        raise LLMUnavailableError("LLM call failed after retries") from last_exc

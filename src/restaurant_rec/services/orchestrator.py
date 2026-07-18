@@ -10,8 +10,8 @@ import time
 
 from ..config import get_settings
 from ..data.cache import RestaurantStore
-from ..llm.client import LLMClient
-from ..llm.parser import parse_recommendations
+from ..llm.client import LLMClient, LLMRateLimitError
+from ..llm.parser import build_fallback, parse_recommendations
 from ..llm.prompt_builder import SYSTEM_PROMPT, build_user_prompt
 from ..models.recommendation import RecommendationResponse
 from ..models.restaurant import UserPreferences
@@ -51,11 +51,14 @@ async def recommend(
     user_prompt = build_user_prompt(prefs, filtered.candidates)
     try:
         raw = await llm_client.complete(SYSTEM_PROMPT, user_prompt)
+        response = parse_recommendations(raw, filtered.candidates, prefs)
+    except LLMRateLimitError:
+        # Free-tier quota / rate limit hit — degrade with an honest reason.
+        logger.warning("LLM rate-limited; using rule-based ranking")
+        response = build_fallback(filtered.candidates, prefs, "rate limited")
     except Exception:  # network/auth/etc — degrade instead of 500ing the user
         logger.exception("LLM call failed; degrading to rule-based ranking")
-        raw = ""  # parser treats empty as invalid -> rule-based fallback
-
-    response = parse_recommendations(raw, filtered.candidates, prefs)
+        response = build_fallback(filtered.candidates, prefs, "llm unavailable")
 
     response.metadata.update(
         candidates_considered=len(filtered.candidates),

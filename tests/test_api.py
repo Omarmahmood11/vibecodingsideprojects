@@ -113,7 +113,25 @@ def test_recommendations_degrades_when_llm_errors():
     client = make_client(llm=BrokenLLM())
     resp = client.post("/recommendations", json={"location": "Indiranagar", "top_k": 2})
     assert resp.status_code == 200  # graceful degrade, not 500
-    assert resp.json()["metadata"]["llm_fallback"] is True
+    body = resp.json()
+    assert body["metadata"]["llm_fallback"] is True
+    assert body["metadata"]["fallback_reason"] == "llm unavailable"
+
+
+def test_recommendations_reports_rate_limit_honestly():
+    from restaurant_rec.llm.client import LLMRateLimitError
+
+    class RateLimitedLLM:
+        async def complete(self, system, user):
+            raise LLMRateLimitError("429 RESOURCE_EXHAUSTED")
+
+    client = make_client(llm=RateLimitedLLM())
+    resp = client.post("/recommendations", json={"location": "Indiranagar", "top_k": 2})
+    assert resp.status_code == 200  # still degrades gracefully
+    body = resp.json()
+    assert body["metadata"]["llm_fallback"] is True
+    # honest reason, not the old catch-all "invalid JSON"
+    assert body["metadata"]["fallback_reason"] == "rate limited"
 
 
 def test_503_when_store_not_ready():

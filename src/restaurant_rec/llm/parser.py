@@ -47,7 +47,7 @@ def _to_recommendation(rank: int, r: Restaurant, explanation: str) -> Recommenda
     )
 
 
-def _fallback(
+def build_fallback(
     candidates: list[Restaurant], prefs: UserPreferences, reason: str
 ) -> RecommendationResponse:
     """Rule-based ranking when the LLM output can't be used."""
@@ -78,11 +78,11 @@ def parse_recommendations(
     try:
         data = json.loads(_strip_fences(raw_text))
     except (json.JSONDecodeError, ValueError):
-        return _fallback(candidates, prefs, "invalid JSON")
+        return build_fallback(candidates, prefs, "invalid JSON")
 
     raw_recs = data.get("recommendations") if isinstance(data, dict) else None
     if not isinstance(raw_recs, list):
-        return _fallback(candidates, prefs, "missing recommendations")
+        return build_fallback(candidates, prefs, "missing recommendations")
 
     recommendations: list[Recommendation] = []
     seen: set[str] = set()
@@ -103,7 +103,7 @@ def parse_recommendations(
             break
 
     if not recommendations:  # every id was invalid → full fallback
-        return _fallback(candidates, prefs, "no valid restaurant ids")
+        return build_fallback(candidates, prefs, "no valid restaurant ids")
 
     summary = _no_dashes((data.get("summary") or "").strip())
     if not summary:  # EC-P02

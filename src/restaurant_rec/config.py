@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.3, ge=0.0, le=2.0, alias="LLM_TEMPERATURE")
     llm_timeout_seconds: int = Field(default=30, ge=1, alias="LLM_TIMEOUT_SECONDS")
     llm_max_retries: int = Field(default=3, ge=0, alias="LLM_MAX_RETRIES")
+    # Cap on the model's JSON reply. Big enough for top_k picks + summary, small
+    # enough to stay cheap and avoid runaway output. Prevents truncated JSON.
+    llm_max_output_tokens: int = Field(
+        default=2048, ge=256, alias="LLM_MAX_OUTPUT_TOKENS"
+    )
 
     # Recommendation pipeline
     min_candidates: int = Field(default=10, ge=1, alias="MIN_CANDIDATES")
