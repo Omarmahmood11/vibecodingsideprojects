@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AnimatePresence, motion, type Variants } from 'framer-motion'
 import {
   ApiError,
   fetchLocations,
@@ -29,6 +30,28 @@ const EXAMPLES = [
   { text: 'big family dinner, great biryani, nothing fussy', loc: 'Whitefield' },
 ]
 
+// staggered reveal for the shortlist
+const listContainer: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09, delayChildren: 0.04 } },
+}
+
+// Collapse sub-divided areas (e.g. "Koramangala 5th Block") to their base name
+// ("Koramangala") for a cleaner, consistent dropdown. The backend filter matches
+// by substring, so selecting the base still covers every block behind the scenes.
+function collapseLocations(locs: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const l of locs) {
+    const base = l.replace(/\s+\d+(st|nd|rd|th)?\s+(Block|Phase|Stage|Sector)\b.*$/i, '').trim()
+    if (!seen.has(base)) {
+      seen.add(base)
+      out.push(base)
+    }
+  }
+  return out
+}
+
 export default function App() {
   const [locations, setLocations] = useState<string[]>([])
   const [location, setLocation] = useState('')
@@ -42,7 +65,7 @@ export default function App() {
 
   useEffect(() => {
     fetchLocations()
-      .then(setLocations)
+      .then((locs) => setLocations(collapseLocations(locs)))
       .catch(() => setLocations([]))
   }, [])
 
@@ -92,18 +115,27 @@ export default function App() {
           </div>
         </header>
 
-        <section className="hero">
-          <span className="eyebrow">Sakkath tindi · awesome eats in Bangalore</span>
+        <motion.section
+          className="hero"
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <span className="eyebrow">📍 Bengaluru</span>
           <h1>
             What are you <span className="accent">in the mood for?</span>
           </h1>
           <p>
-            Skip the endless scroll. Describe your evening and get three Bangalore spots worth going
-            to, with a reason for each.
+            Skip the endless scroll. Describe your evening and get three spots worth going to.
           </p>
-        </section>
+        </motion.section>
 
-        <section className="console">
+        <motion.section
+          className="console"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+        >
           <div className="console-top">
             <div className="intent-wrap">
               <label className="intent-label" htmlFor="intent">
@@ -121,10 +153,15 @@ export default function App() {
                 }}
               />
             </div>
-            <button className="go" onClick={run} disabled={!location || loading}>
+            <motion.button
+              className="go"
+              onClick={run}
+              disabled={!location || loading}
+              whileTap={{ scale: 0.97 }}
+            >
               {loading ? 'Finding…' : 'Find spots'}
               {!loading && <span className="arrow">→</span>}
-            </button>
+            </motion.button>
           </div>
 
           <div className="rail">
@@ -164,73 +201,98 @@ export default function App() {
               </div>
             </div>
           </div>
-        </section>
+        </motion.section>
 
-        {!result && !loading && !error && (
-          <div className="examples">
-            <span className="lbl">Not sure? Try one of these</span>
-            {EXAMPLES.map((ex) => (
-              <button
-                key={ex.text}
-                className="chip"
-                onClick={() => {
-                  setIntent(ex.text)
-                  setLocation(ex.loc)
-                }}
-              >
-                {ex.text}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {loading && (
-          <div className="loading">
-            <span>Tasting the options for you</span>
-            <span className="dots">
-              <i />
-              <i />
-              <i />
-            </span>
-          </div>
-        )}
-
-        {error && (
-          <div className="notice error">
-            <div className="big">
-              {error.status === 404 ? 'No matches for that' : 'Something went wrong'}
-            </div>
-            <p>{error.message}</p>
-          </div>
-        )}
-
-        {result && (
-          <section className="results">
-            <div className="results-head">
-              <span className="eyebrow">Your shortlist</span>
-              <button className="again" onClick={reset}>
-                ↻ Start over
-              </button>
-            </div>
-            <p className="summary">{result.summary}</p>
-            {relaxed && (
-              <span className="relaxed">
-                Few exact matches, so we widened the search a little to find these.
+        <AnimatePresence mode="wait">
+          {loading ? (
+            <motion.div
+              key="loading"
+              className="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <span>Tasting the options for you</span>
+              <span className="dots">
+                <i />
+                <i />
+                <i />
               </span>
-            )}
+            </motion.div>
+          ) : error ? (
+            <motion.div
+              key="error"
+              className="notice error"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
+              <div className="big">
+                {error.status === 404 ? 'No matches for that' : 'Something went wrong'}
+              </div>
+              <p>{error.message}</p>
+            </motion.div>
+          ) : result ? (
+            <motion.section
+              key="results"
+              className="results"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <div className="results-head">
+                <span className="eyebrow">Your shortlist</span>
+                <button className="again" onClick={reset}>
+                  ↻ Start over
+                </button>
+              </div>
+              <p className="summary">{result.summary}</p>
+              {relaxed && (
+                <span className="relaxed">
+                  Few exact matches, so we widened the search a little to find these.
+                </span>
+              )}
 
-            <div className="card-list">
-              {result.recommendations.map((rec, i) => (
-                <PlaceCard key={rec.restaurant_id} rec={rec} delay={i * 90} />
+              <motion.div
+                className="card-list"
+                variants={listContainer}
+                initial="hidden"
+                animate="show"
+              >
+                {result.recommendations.map((rec) => (
+                  <PlaceCard key={rec.restaurant_id} rec={rec} />
+                ))}
+              </motion.div>
+
+              <div className="foot">
+                Considered <span className="num">{result.metadata.candidates_considered}</span> spots
+                {result.metadata.llm_fallback ? ' · ranked by rating' : ' · picked by AI'}
+              </div>
+            </motion.section>
+          ) : (
+            <motion.div
+              key="examples"
+              className="examples"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
+              <span className="lbl">Not sure? Try one of these</span>
+              {EXAMPLES.map((ex) => (
+                <button
+                  key={ex.text}
+                  className="chip"
+                  onClick={() => {
+                    setIntent(ex.text)
+                    setLocation(ex.loc)
+                  }}
+                >
+                  {ex.text}
+                </button>
               ))}
-            </div>
-
-            <div className="foot">
-              Considered <span className="num">{result.metadata.candidates_considered}</span> spots
-              {result.metadata.llm_fallback ? ' · ranked by rating' : ' · picked by AI'}
-            </div>
-          </section>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </>
   )

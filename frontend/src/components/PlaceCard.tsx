@@ -1,11 +1,36 @@
+import { motion, type Variants } from 'framer-motion'
 import type { Recommendation } from '../api'
 
-export function PlaceCard({ rec, delay }: { rec: Recommendation; delay: number }) {
+const item: Variants = {
+  hidden: { opacity: 0, y: 18 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { type: 'spring', stiffness: 300, damping: 28 },
+  },
+}
+
+export function PlaceCard({ rec }: { rec: Recommendation }) {
+  const mapsUrl =
+    'https://www.google.com/maps/search/?api=1&query=' +
+    encodeURIComponent(`${rec.name}, ${rec.location}, Bengaluru`)
+
   return (
-    <article className={`card${rec.rank === 1 ? ' top' : ''}`} style={{ animationDelay: `${delay}ms` }}>
+    <motion.article
+      className={`card${rec.rank === 1 ? ' top' : ''}`}
+      variants={item}
+      whileHover={{ y: -4 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+    >
       <div className="rank num">{rec.rank}</div>
       <div>
-        <h3>{rec.name}</h3>
+        <div className="card-head">
+          <h3>{rec.name}</h3>
+          <a className="maps-link" href={mapsUrl} target="_blank" rel="noopener noreferrer">
+            <span className="pin">📍</span> Maps
+            <span className="ext">↗</span>
+          </a>
+        </div>
         <div className="chips">
           {rec.rating != null && (
             <span className="metachip rating num">
@@ -21,6 +46,6 @@ export function PlaceCard({ rec, delay }: { rec: Recommendation; delay: number }
           <p>{rec.explanation}</p>
         </div>
       </div>
-    </article>
+    </motion.article>
   )
 }
