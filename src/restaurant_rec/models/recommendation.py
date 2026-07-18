@@ -1,0 +1,1 @@
+"""Recommendation response models."""
