@@ -5,8 +5,10 @@ string-typed fields. This module is the *only* place that knows about those
 raw quirks; everything downstream works with clean `Restaurant` objects.
 """
 
+import json
 import logging
 import time
+from pathlib import Path
 
 import ftfy
 
@@ -14,6 +16,10 @@ from ..config import get_settings
 from ..models.restaurant import Restaurant
 
 logger = logging.getLogger(__name__)
+
+# v2 enriched dataset: pre-cleaned, deduped, with grounded review snippets.
+# Built once via scripts/build_v2_dataset.py. Preferred when present.
+V2_DATA_FILE = Path(__file__).resolve().parents[3] / "data" / "restaurants_v2.jsonl"
 
 
 def _clean(text: object) -> str:
@@ -68,12 +74,61 @@ def parse_cost(raw: object) -> int | None:
 
 
 def load_restaurants() -> list[Restaurant]:
-    """Load the dataset and return normalized, valid `Restaurant` records.
+    """Load restaurants, preferring the v2 enriched local file over Hugging Face.
 
-    Records missing a usable name are skipped (they can't be recommended).
-    Missing rating/cost are kept as None — those get excluded per-filter later,
-    not dropped outright.
+    v2 (data/restaurants_v2.jsonl) is already cleaned, deduped, and carries real
+    review snippets for grounded explanations. If it's missing, fall back to
+    loading + normalizing the raw Hugging Face dataset (v1 behavior).
     """
+    if V2_DATA_FILE.exists():
+        return _load_from_v2_file()
+    logger.info("v2 data file not found; falling back to Hugging Face loader")
+    return _load_from_huggingface()
+
+
+def _load_from_v2_file() -> list[Restaurant]:
+    """Load the pre-built enriched JSONL (fast, offline, grounded)."""
+    started = time.perf_counter()
+    logger.info("Loading v2 enriched dataset from %s ...", V2_DATA_FILE)
+
+    restaurants: list[Restaurant] = []
+    with V2_DATA_FILE.open(encoding="utf-8") as f:
+        for index, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            name = (rec.get("name") or "").strip()
+            location = (rec.get("location") or "").strip()
+            if not name or not location:
+                continue
+            restaurants.append(
+                Restaurant(
+                    id=f"r{index}",
+                    name=name,
+                    location=location,
+                    cuisine=(rec.get("cuisine") or "").strip(),
+                    rating=rec.get("rating"),
+                    cost_for_two=rec.get("cost_for_two"),
+                    rest_type=(rec.get("rest_type") or None),
+                    votes=int(rec.get("votes") or 0),
+                    dish_liked=(rec.get("dish_liked") or "").strip(),
+                    review_snippets=rec.get("review_snippets") or [],
+                )
+            )
+
+    with_reviews = sum(1 for r in restaurants if r.review_snippets)
+    logger.info(
+        "Loaded %d restaurants (%d with review snippets) from v2 file in %.1fs",
+        len(restaurants),
+        with_reviews,
+        time.perf_counter() - started,
+    )
+    return restaurants
+
+
+def _load_from_huggingface() -> list[Restaurant]:
+    """Load + normalize the raw Hugging Face dataset (v1 fallback path)."""
     from datasets import load_dataset
 
     settings = get_settings()

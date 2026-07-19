@@ -30,6 +30,11 @@ class Restaurant(BaseModel):
     cost_for_two: int | None = Field(default=None, description="INR, or None if unknown")
     rest_type: str | None = Field(default=None, description="e.g. 'Casual Dining'")
     votes: int = Field(default=0)
+    dish_liked: str = Field(default="", description="Popular dishes (v2 enriched data)")
+    review_snippets: list[str] = Field(
+        default_factory=list,
+        description="Short real review excerpts for grounding vibe claims (v2)",
+    )
     raw: dict = Field(default_factory=dict, description="Original record, for debugging")
 
 
