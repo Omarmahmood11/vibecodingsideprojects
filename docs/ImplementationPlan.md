@@ -65,10 +65,10 @@ Requirements from `context.md` tracked across phases:
 - [ ] Create `requirements.txt` with core dependencies:
   - `fastapi`, `uvicorn`, `pydantic`, `pydantic-settings`
   - `datasets`, `pandas`
-  - `openai` (or chosen LLM SDK)
+  - `google-genai` (Gemini LLM SDK)
   - `python-dotenv`, `httpx`
   - Dev: `pytest`, `pytest-asyncio`, `ruff`
-- [ ] Add `.env.example` with `OPENAI_API_KEY`, `LLM_MODEL`, `LOG_LEVEL`
+- [ ] Add `.env.example` with `GEMINI_API_KEY`, `LLM_MODEL`, `LOG_LEVEL`
 - [ ] Add `.gitignore` (`.env`, `__pycache__`, `.venv`, etc.)
 - [ ] Create `config.py` using `pydantic-settings` for all tunables
 - [ ] Scaffold empty module files (`models/`, `data/`, `services/`, `llm/`, `api/`)
@@ -151,7 +151,7 @@ Requirements from `context.md` tracked across phases:
   - Cuisine filter (token/substring match)
   - Budget filter (low ≤500, medium 501–1500, high >1500 INR)
   - Fallback: relax cuisine, then budget if `< MIN_CANDIDATES` (10)
-  - Cap output at 50 candidates
+  - Cap output at 15 candidates
 - [ ] Write unit tests in `tests/test_filter.py`:
   - Each filter rule in isolation
   - Combined filters
@@ -183,7 +183,7 @@ Requirements from `context.md` tracked across phases:
 
 - [ ] Implement `llm/client.py`:
   - `LLMClient` protocol with `async complete(system, user) -> str`
-  - `OpenAIClient` implementation (GPT-4o-mini default)
+  - `GeminiClient` implementation (Gemini Flash default, via `google-genai` SDK)
   - Configurable temperature (0.2–0.4), timeout, retry with backoff
 - [ ] Implement `llm/prompt_builder.py`:
   - System prompt template (role, constraints, JSON output)
@@ -217,7 +217,7 @@ Requirements from `context.md` tracked across phases:
 |------|------------|
 | LLM returns invalid JSON | Low temperature; explicit schema in prompt; parser fallback |
 | Hallucinated restaurant IDs | Server-side ID validation; reject unknown IDs |
-| High latency/cost | Pre-filter to ≤50 candidates; use gpt-4o-mini |
+| High latency/cost | Pre-filter to ≤15 candidates; use Gemini Flash free tier |
 
 ---
 
@@ -270,22 +270,16 @@ Requirements from `context.md` tracked across phases:
 
 **Maps to:** Context workflow steps 2 & 5 (User Input + Output Display) · Architecture §3.1
 
-### Option A: Streamlit MVP (faster, 1–2 days)
+### Implementation: React + Vite + Framer Motion
 
-- [ ] Single-page app: form + results
-- [ ] Dropdowns populated from `/metadata/locations` and `/metadata/cuisines`
-- [ ] Budget radio/select, rating slider, optional free-text field
-- [ ] Results cards: name, cuisine, rating, cost, explanation
-- [ ] Loading spinner during LLM call; error messages on failure
-
-### Option B: React + Vite (production, 2–3 days)
-
-- [ ] Scaffold `frontend/` with Vite + React + TypeScript
-- [ ] Preference form component with validation
-- [ ] API client for backend endpoints
-- [ ] Results list with recommendation cards
-- [ ] Loading, empty, and error states
-- [ ] Responsive layout
+- [x] Scaffold `frontend/` with Vite + React + TypeScript
+- [x] Preference form component with validation
+- [x] API client for backend endpoints
+- [x] Results list with animated recommendation cards (Framer Motion)
+- [x] Loading, empty, and error states
+- [x] Responsive layout with aurora/glassmorphism design
+- [x] Neighborhood picker with searchable dropdown
+- [x] Google Maps links on each recommendation card
 
 ### Shared UI Requirements
 
@@ -389,14 +383,14 @@ Requirements from `context.md` tracked across phases:
 Use this as a progress tracker across the project lifecycle:
 
 ```
-Phase 0: Project Foundation          [ ]
-Phase 1: Data Layer                  [ ]
-Phase 2: Filtering & Domain Models   [ ]
-Phase 3: LLM Integration             [ ]
-Phase 4: API & Orchestration         [ ]
-Phase 5: User Interface              [ ]
-Phase 6: Quality & Hardening         [ ]
-Phase 7: Production Readiness        [ ]
+Phase 0: Project Foundation          [x]
+Phase 1: Data Layer                  [x]
+Phase 2: Filtering & Domain Models   [x]
+Phase 3: LLM Integration             [x]
+Phase 4: API & Orchestration         [x]
+Phase 5: User Interface              [x]
+Phase 6: Quality & Hardening         [x]
+Phase 7: Production Readiness        [x] (deployed on Vercel + Render)
 ```
 
 ---
@@ -408,8 +402,8 @@ For fastest path to a demo:
 1. **Phases 0 → 1 → 2** — Backend can filter restaurants locally (no LLM cost)
 2. **Phase 3** — Wire LLM; validate with CLI/script before API
 3. **Phase 4** — Lock API contract
-4. **Phase 5 (Streamlit MVP)** — Demo-ready UI in minimal time
-5. **Phases 6 → 7** — Harden and deploy; upgrade to React if needed
+4. **Phase 5 (React + Vite)** — Full production UI with animations
+5. **Phases 6 → 7** — Harden, deploy to Vercel + Render
 
 ---
 

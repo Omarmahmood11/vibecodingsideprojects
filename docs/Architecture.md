@@ -34,10 +34,10 @@ This split keeps LLM context small, reduces cost and latency, and grounds recomm
 | **Language** | Python 3.11+ | Strong ecosystem for data (`datasets`, `pandas`) and LLM SDKs. |
 | **Data loading** | Hugging Face `datasets` | Native support for the Zomato dataset source. |
 | **API / backend** | FastAPI | Lightweight, async-friendly, auto-generated OpenAPI docs. |
-| **Frontend** | React + Vite (or Streamlit for MVP) | React for production UI; Streamlit for rapid prototype. |
-| **LLM provider** | OpenAI GPT-4o-mini (default) | Cost-effective for ranking/explanation; swappable via adapter. |
+| **Frontend** | React + Vite + Framer Motion | Production UI with animations and glassmorphism design. |
+| **LLM provider** | Google Gemini Flash (free tier) | Fast, free (1,500 RPD), excellent JSON adherence; swappable via adapter. |
 | **Config / secrets** | `.env` + `pydantic-settings` | API keys and tunables outside code. |
-| **Caching** | In-memory (dev) / Redis (prod) | Cache filtered candidate sets and LLM responses by preference hash. |
+| **Caching** | In-memory | Dataset cached in memory on startup; no external cache layer. |
 
 ---
 
@@ -153,11 +153,14 @@ flowchart TB
       "explanation": "Highly rated Italian spot within your medium budget..."
     }
   ],
-  "metadata": {
-    "candidates_considered": 42,
-    "model": "gpt-4o-mini",
-    "latency_ms": 1200
-  }
+   "metadata": {
+     "candidates_considered": 15,
+     "model": "gemini-flash-latest",
+     "latency_ms": 1200,
+     "cuisine_relaxed": false,
+     "budget_relaxed": false,
+     "llm_fallback": false
+   }
 }
 ```
 
@@ -177,13 +180,16 @@ flowchart TB
 | `name` | string | Restaurant name |
 | `location` | string | City / area |
 | `cuisine` | string | Primary or comma-separated cuisines |
-| `rating` | float | Normalized to 0–5 |
-| `cost_for_two` | int | INR; used for budget mapping |
-| `raw` | dict | Original record for debugging |
+| `rating` | float \| None | Normalized to 0–5 |
+| `cost_for_two` | int \| None | INR; used for budget mapping |
+| `rest_type` | string \| None | e.g., "Casual Dining", "Quick Bites" |
+| `votes` | int | Number of user votes |
+| `dish_liked` | string | Popular dishes |
+| `review_snippets` | list[str] | Real customer review excerpts (v2 dataset) |
 
 #### 3.3.2 Candidate Filter
 
-Deterministic pre-LLM filtering. Reduces dataset to a manageable candidate set (target: 20–50 records).
+Deterministic pre-LLM filtering. Reduces dataset to a manageable candidate set (target: 10–15 records).
 
 **Filter rules (applied in order):**
 
@@ -227,7 +233,7 @@ class LLMClient(Protocol):
     async def complete(self, system: str, user: str) -> str: ...
 ```
 
-Implementations: `OpenAIClient`, `AnthropicClient`, `LocalModelClient`.
+Current implementation: `GeminiClient` (using the `google-genai` SDK). The adapter pattern allows swapping to other providers if needed.
 
 **Configuration:**
 
@@ -377,30 +383,39 @@ vibecodingsideprojects/
 ├── docs/
 │   ├── problemstatement.txt
 │   ├── context.md
-│   └── Architecture.md
+│   ├── Architecture.md
+│   └── edge-case.md
 ├── src/
 │   └── restaurant_rec/
 │       ├── __init__.py
-│       ├── main.py                 # FastAPI app entrypoint
+│       ├── main.py                 # FastAPI app entrypoint + CORS
 │       ├── config.py               # Settings (pydantic-settings)
 │       ├── models/
 │       │   ├── restaurant.py       # Restaurant, UserPreferences DTOs
 │       │   └── recommendation.py   # Recommendation response models
 │       ├── data/
-│       │   ├── loader.py           # Hugging Face dataset loader
-│       │   └── cache.py            # In-memory dataset cache
+│       │   ├── loader.py           # v2 JSONL loader + HF fallback
+│       │   └── cache.py            # In-memory dataset cache + indexes
 │       ├── services/
 │       │   ├── filter.py           # Candidate filtering logic
+│       │   ├── scoring.py          # Rule-based scoring for fallback
 │       │   ├── orchestrator.py     # Pipeline coordinator
 │       │   └── metadata.py         # Locations / cuisines endpoints
 │       ├── llm/
-│       │   ├── client.py           # LLM adapter protocol + impl
+│       │   ├── client.py           # LLM adapter (GeminiClient)
 │       │   ├── prompt_builder.py   # Prompt templates
 │       │   └── parser.py           # Response parsing + fallback
 │       └── api/
 │           ├── routes.py           # FastAPI routers
 │           └── dependencies.py     # DI (dataset, LLM client)
-├── frontend/                       # Optional React app
+├── frontend/                       # React + Vite + Framer Motion UI
+│   └── src/
+│       ├── App.tsx                 # Main app with form + results
+│       ├── api.ts                  # API client layer
+│       ├── index.css               # Aurora/glassmorphism design
+│       └── components/             # PlaceCard, NeighborhoodPicker
+├── data/
+│   └── restaurants_v2.jsonl        # Pre-enriched dataset with reviews
 ├── tests/
 │   ├── test_filter.py
 │   ├── test_parser.py
@@ -462,27 +477,23 @@ vibecodingsideprojects/
 ### 9.1 Development
 
 ```
-Developer → uvicorn (local) → Hugging Face dataset + OpenAI API
+Developer → uvicorn (local) → v2 JSONL dataset + Gemini API
 ```
 
-### 9.2 Production (recommended)
+### 9.2 Production (current)
 
 ```mermaid
 flowchart LR
-    User["User Browser"] --> CDN["Static Frontend\n(Vercel / S3)"]
-    CDN --> LB["Load Balancer"]
-    LB --> API1["API Instance 1"]
-    LB --> API2["API Instance 2"]
-    API1 --> Redis[("Redis Cache")]
-    API2 --> Redis
-    API1 --> LLM["LLM Provider"]
-    API2 --> LLM
+    User["User Browser"] --> Vercel["Vercel\n(React frontend)"]
+    Vercel --> Render["Render Free Tier\n(FastAPI backend)"]
+    Render --> Gemini["Google Gemini\nFlash API"]
+    Render --> Data["In-Memory\nDataset Cache"]
 ```
 
-- **Frontend:** Static build deployed to CDN.
-- **Backend:** Containerized FastAPI on Cloud Run, ECS, or similar.
-- **Secrets:** Managed via cloud secret store (AWS Secrets Manager, GCP Secret Manager).
-- **Scaling:** Horizontal scaling of stateless API instances; shared Redis for response cache.
+- **Frontend:** React static build on **Vercel** ([sakkath-tindi.vercel.app](https://sakkath-tindi.vercel.app)).
+- **Backend:** FastAPI on **Render** free tier (0.1 CPU, 512MB RAM). Spins down after 15 min inactivity.
+- **Secrets:** `GEMINI_API_KEY` set via Render environment variables.
+- **Frontend↔Backend link:** `VITE_API_URL` env var on Vercel points to the Render URL.
 
 ---
 
@@ -492,12 +503,13 @@ Decisions left open in `context.md`, resolved here:
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| LLM provider | OpenAI GPT-4o-mini (default) | Good balance of quality, cost, and JSON adherence |
-| Application type | FastAPI backend + React frontend | Clean API boundary; CLI optional for dev |
-| Filtering strategy | Pre-filter before LLM | Controls token usage; grounds results in real data |
+| LLM provider | Google Gemini Flash (free tier) | Free (1,500 RPD), fast, excellent JSON adherence |
+| Application type | FastAPI backend + React frontend | Clean API boundary; deployed separately on Vercel + Render |
+| Filtering strategy | Pre-filter before LLM (max 15 candidates) | Controls token usage; grounds results in real data |
 | Prompt design | Structured JSON output | Enables reliable parsing and validation |
 | Number of recommendations | Default 5 (`top_k` configurable) | Enough variety without overwhelming the user |
-| Hallucination prevention | ID-based merge from dataset | LLM only ranks/explains; facts come from data layer |
+| Hallucination prevention | ID-based merge + review snippets | LLM explains using real customer reviews (v2 grounding) |
+| Rate-limit resilience | Graceful fallback to rule-based ranking | App never breaks; just loses AI explanations temporarily |
 
 ---
 
