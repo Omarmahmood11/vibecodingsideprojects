@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     # Recommendation pipeline
     min_candidates: int = Field(default=10, ge=1, alias="MIN_CANDIDATES")
-    max_candidates: int = Field(default=50, ge=1, alias="MAX_CANDIDATES")
+    max_candidates: int = Field(default=15, ge=1, alias="MAX_CANDIDATES")
     default_top_k: int = Field(default=5, ge=1, le=10, alias="DEFAULT_TOP_K")
 
     # Dataset
