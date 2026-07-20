@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 
 # v2 enriched dataset: pre-cleaned, deduped, with grounded review snippets.
 # Built once via scripts/build_v2_dataset.py. Preferred when present.
-V2_DATA_FILE = Path(__file__).resolve().parents[3] / "data" / "restaurants_v2.jsonl"
+_cwd_data = Path.cwd() / "data" / "restaurants_v2.jsonl"
+_file_data = Path(__file__).resolve().parents[3] / "data" / "restaurants_v2.jsonl"
+V2_DATA_FILE = _cwd_data if _cwd_data.exists() else _file_data
 
 
 def _clean(text: object) -> str:
