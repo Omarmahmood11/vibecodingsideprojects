@@ -10,6 +10,12 @@ const item: Variants = {
   },
 }
 
+function matchTier(score: number): string {
+  if (score >= 80) return 'high'
+  if (score >= 60) return 'mid'
+  return 'low'
+}
+
 export function PlaceCard({ rec }: { rec: Recommendation }) {
   const mapsUrl =
     'https://www.google.com/maps/search/?api=1&query=' +
@@ -32,6 +38,9 @@ export function PlaceCard({ rec }: { rec: Recommendation }) {
           </a>
         </div>
         <div className="chips">
+          <span className={`metachip match ${matchTier(rec.match_score)}`}>
+            <span className="num">{rec.match_score}%</span> match
+          </span>
           {rec.rating != null && (
             <span className="metachip rating num">
               <span className="star">★</span> {rec.rating.toFixed(1)}
@@ -45,6 +54,11 @@ export function PlaceCard({ rec }: { rec: Recommendation }) {
           <span className="why">Why this pick</span>
           <p>{rec.explanation}</p>
         </div>
+        {rec.match_reasons.length > 0 && (
+          <div className="match-reasons">
+            Matches your ask: {rec.match_reasons.map((t) => `“${t}”`).join(' · ')}
+          </div>
+        )}
       </div>
     </motion.article>
   )

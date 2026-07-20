@@ -70,7 +70,7 @@ export default function App() {
   }, [])
 
   async function run() {
-    if (!location) return
+    if (!location || loading) return
     setLoading(true)
     setError(null)
     setResult(null)
@@ -80,7 +80,7 @@ export default function App() {
         budget,
         min_rating: minRating,
         additional_preferences: intent.trim() || null,
-        top_k: 3,
+        top_k: 5,
       })
       setResult(data)
     } catch (e) {

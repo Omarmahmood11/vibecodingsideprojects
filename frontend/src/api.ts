@@ -18,6 +18,8 @@ export interface Recommendation {
   estimated_cost: string
   location: string
   explanation: string
+  match_score: number
+  match_reasons: string[]
 }
 
 export interface RecommendationResponse {
@@ -41,14 +43,16 @@ export class ApiError extends Error {
   }
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || ''
+
 export async function fetchLocations(): Promise<string[]> {
-  const res = await fetch('/metadata/locations')
+  const res = await fetch(`${API_BASE}/metadata/locations`)
   if (!res.ok) throw new ApiError(res.status, 'Could not load neighborhoods')
   return res.json()
 }
 
 export async function getRecommendations(prefs: Preferences): Promise<RecommendationResponse> {
-  const res = await fetch('/recommendations', {
+  const res = await fetch(`${API_BASE}/recommendations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(prefs),

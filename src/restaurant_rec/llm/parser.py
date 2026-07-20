@@ -11,6 +11,7 @@ import logging
 
 from ..models.recommendation import Recommendation, RecommendationResponse
 from ..models.restaurant import Restaurant, UserPreferences
+from ..services.scoring import compute_match
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,10 @@ def _strip_fences(text: str) -> str:
     return text.strip().removeprefix("json").strip()
 
 
-def _to_recommendation(rank: int, r: Restaurant, explanation: str) -> Recommendation:
+def _to_recommendation(
+    rank: int, r: Restaurant, explanation: str, prefs: UserPreferences
+) -> Recommendation:
+    score, reasons = compute_match(r, prefs)
     return Recommendation(
         rank=rank,
         restaurant_id=r.id,
@@ -44,7 +48,22 @@ def _to_recommendation(rank: int, r: Restaurant, explanation: str) -> Recommenda
         estimated_cost=_format_cost(r.cost_for_two),
         location=r.location,
         explanation=explanation,
+        match_score=score,
+        match_reasons=reasons,
     )
+
+
+def _rank_by_match(recs: list[Recommendation]) -> list[Recommendation]:
+    """Order results by the transparent match score so rank matches the % shown.
+
+    The LLM still selects the shortlist and writes the grounded reasons; this just
+    makes the display order consistent with the score. Stable sort keeps the LLM's
+    order among ties.
+    """
+    ordered = sorted(recs, key=lambda x: x.match_score, reverse=True)
+    for i, rec in enumerate(ordered):
+        rec.rank = i + 1
+    return ordered
 
 
 def build_fallback(
@@ -58,12 +77,13 @@ def build_fallback(
             i + 1,
             r,
             f"Rated {r.rating}/5, {r.cuisine}, {_format_cost(r.cost_for_two)}.",
+            prefs,
         )
         for i, r in enumerate(top)
     ]
     return RecommendationResponse(
         summary=f"Top {len(recs)} restaurants in {prefs.location} by rating and budget.",
-        recommendations=recs,
+        recommendations=_rank_by_match(recs),
         metadata={"llm_fallback": True, "fallback_reason": reason},
     )
 
@@ -98,7 +118,7 @@ def parse_recommendations(
         if not explanation:  # EC-P03: template fallback for a missing explanation
             explanation = f"Rated {restaurant.rating}/5, {restaurant.cuisine}."
         rank = len(recommendations) + 1
-        recommendations.append(_to_recommendation(rank, restaurant, explanation))
+        recommendations.append(_to_recommendation(rank, restaurant, explanation, prefs))
         if len(recommendations) >= prefs.top_k:  # EC-L09: truncate extras
             break
 
@@ -111,6 +131,6 @@ def parse_recommendations(
 
     return RecommendationResponse(
         summary=summary,
-        recommendations=recommendations,
+        recommendations=_rank_by_match(recommendations),
         metadata={"llm_fallback": False, "candidates_considered": len(candidates)},
     )

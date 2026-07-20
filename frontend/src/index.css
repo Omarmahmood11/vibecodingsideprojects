@@ -686,6 +686,32 @@ textarea {
   font-weight: 500;
 }
 
+/* computed match indicator (real score, not LLM-guessed) */
+.metachip.match {
+  font-weight: 700;
+  border: 0;
+}
+.metachip.match .num {
+  font-weight: 800;
+}
+.metachip.match.high {
+  color: #256b41;
+  background: var(--herb-wash);
+}
+.metachip.match.mid {
+  color: #9a6a08;
+  background: rgba(239, 159, 34, 0.16);
+}
+.metachip.match.low {
+  color: var(--ink-2);
+  background: var(--inset);
+}
+.match-reasons {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
 .note {
   margin-top: 15px;
   border-left: 3px solid var(--herb);

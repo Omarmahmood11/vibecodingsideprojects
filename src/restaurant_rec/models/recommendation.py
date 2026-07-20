@@ -16,6 +16,17 @@ class Recommendation(BaseModel):
     estimated_cost: str = Field(description="Human-readable, e.g. '₹800 for two'")
     location: str
     explanation: str
+    match_score: int = Field(
+        default=0,
+        ge=0,
+        le=100,
+        description="Transparent 0-100 fit score: rating + how much the user's "
+        "request is echoed in the restaurant's real reviews. Computed, not LLM-guessed.",
+    )
+    match_reasons: list[str] = Field(
+        default_factory=list,
+        description="Which of the user's terms the reviews actually support.",
+    )
 
 
 class RecommendationResponse(BaseModel):
